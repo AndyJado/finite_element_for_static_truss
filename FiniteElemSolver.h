@@ -63,6 +63,7 @@ private:
 	void	GetStiffnessMat(const vec& nd1,const vec& nd2,double rad,Matrix6d& K,int id);
 	void	InsertTriplet(vector<Tr>& tpl,int r,int c,const Matrix6d& K);
 	void	SetBigNum(SparseMatrixType& K,int i);
+	void	LockStiffinZ(SparseMatrixType& K,int i);
 };
 
 #endif

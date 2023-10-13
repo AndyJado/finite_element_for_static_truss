@@ -1,4 +1,5 @@
 #include "FiniteElemSolver.h"
+#include <cstdio>
 
 void static_solver::readTrussData(const char* filename)
 {
@@ -8,7 +9,9 @@ void static_solver::readTrussData(const char* filename)
 		printf("file not exists,please check the path of the file");
 		return;
 	}
+	// vec named str
 	char str[80];
+	// %s: space, tab, newline
 	while (fscanf(file,"%s",str) == 1)
 	{
 		if (strncmp(str,"elasticModulus",14) == 0)
@@ -28,6 +31,7 @@ void static_solver::readTrussData(const char* filename)
 				nd.push_back(vec(x,y,z));
 			}
 		}
+		// elements I suppose
 		else if (strncmp(str,"units",5) == 0)
 		{
 			int unit_count;
@@ -82,7 +86,7 @@ void static_solver::Solve()
 	}
 	else
 	{
-		printf("there are some errors in the truss structure");
+		printf("there are some errors in the truss structure\n");
 		return;
 	}
 }
@@ -118,6 +122,7 @@ bool static_solver::SolveforDisplacement()
 			Fr(3*ext_f[i].first+j) = ext_f[i].second[j];
 	}
 
+	// std::cout << Kw << std::endl;
 	//set constraint 
 	for (size_t i=0; i< constraint.size(); i++)
 	{
@@ -129,14 +134,26 @@ bool static_solver::SolveforDisplacement()
 
 	
 	Eigen::SimplicialCholesky<SparseMatrixType> K_Solver;
+	std::cout << Kw << std::endl;
 	K_Solver.compute(Kw);
   	if (K_Solver.info() != Eigen::Success)
 	{
+		std::cout << K_Solver.info() << std::endl;
 		return false;
 	}         
 	
 	du = K_Solver.solve(Fr);
 	return true;
+}
+
+
+void static_solver::LockStiffinZ(SparseMatrixType& K,int i)
+{
+	for (int j=0; j<i; j+=3)
+	{
+			K.coeffRef(j,j) = BIGNUMERIC;
+	}
+
 }
 
 void static_solver::SetBigNum(SparseMatrixType& K,int i)
@@ -146,7 +163,10 @@ void static_solver::SetBigNum(SparseMatrixType& K,int i)
 	{
 		for (int k=0; k<3; k++)
 		{
-			K.coeffRef(i+j,i+k) = BIGNUMERIC * K.coeff(i+j,i+k);
+			float ef = K.coeff(i+j,i+k);
+			if (ef <= BIGNUMERIC) {
+			K.coeffRef(i+j,i+k) = BIGNUMERIC * ef;
+			}
 		}
 	}
 }
@@ -205,6 +225,18 @@ inline void static_solver::GetStiffnessMat(const vec& nd1,const vec& nd2,
 	Ke << 1, -1, -1, 1;
 
 	K = coefficient * ((*Te).transpose() * Ke * (*Te));
+std::cout << K << std::endl;
+	for (int i=2;i<6;i+=3)
+	{
+		for (int j=0;j<6;j++)
+		{
+			K(i,j) = BIGNUMERIC;
+			K(j,i) = BIGNUMERIC;
+		}
+	}
+
+std::cout << K << std::endl;
+
 
 	Transto[id] = Te;
 	link_length[id] = ld;
@@ -262,7 +294,7 @@ void static_solver::save_results(const char* filename)
 	fprintf(fp,"Element Unit Stress\n");
 	for (size_t i=0; i<stress.size(); i++)
 	{
-		fprintf(fp,"Unit%d:%.3f\n",i,static_cast<float>(stress[i]));
+		fprintf(fp,"Unit%lu:%.3f\n",i,static_cast<float>(stress[i]));
 	}
 	fclose(fp);
 }
