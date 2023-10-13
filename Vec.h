@@ -223,6 +223,7 @@ public:
 		  return result; }
 };
 
+// type alias, [1.1,2.1,31.0] is a vec
 typedef Vec<3,float> vec;
 typedef Vec<3,float> point;
 typedef Vec<2,float> vec2;

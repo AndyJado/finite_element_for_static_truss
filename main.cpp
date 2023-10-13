@@ -4,7 +4,7 @@
 int main()
 {
 	static_solver trussFem;
-	trussFem.readTrussData("inputfile.txt");
+	trussFem.readTrussData("input1_3d");
 	trussFem.Solve();
 	int exitSwitch = 1;
 	std::cout << "Press '2' to print results" << std::endl 
