@@ -228,10 +228,9 @@ inline void static_solver::GetStiffnessMat(const vec& nd1,const vec& nd2,
 std::cout << K << std::endl;
 	for (int i=2;i<6;i+=3)
 	{
-		for (int j=0;j<6;j++)
+		for (int j=2;j<6;j+=3)
 		{
 			K(i,j) = BIGNUMERIC;
-			K(j,i) = BIGNUMERIC;
 		}
 	}
 
