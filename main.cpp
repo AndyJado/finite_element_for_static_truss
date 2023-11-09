@@ -4,7 +4,7 @@
 int main()
 {
 	static_solver trussFem;
-	trussFem.readTrussData("input1_fail");
+	trussFem.readTrussData("input2");
 	trussFem.Solve();
 	int exitSwitch = 1;
 	std::cout << "Press '2' to print results" << std::endl 

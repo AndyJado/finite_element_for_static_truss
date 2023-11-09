@@ -13,6 +13,8 @@ using std::pair;
 using std::set;
 
 typedef Eigen::Matrix<double,2,6> Matrix2_6d;
+typedef Eigen::Matrix<double,2,4> Matrix2_4d;
+typedef Eigen::Matrix<double,4,4> Matrix4d;
 typedef Eigen::Matrix<double,6,6> Matrix6d;
 typedef Eigen::Triplet<double> Tr;
 typedef Eigen::SparseMatrix<double> SparseMatrixType;
@@ -30,10 +32,12 @@ public:
 	vector<int>			    constraint; 
 	//ext_f is the exterior force applied to nodes.
 	vector<pair<int,vec> >  ext_f;
+	vector<pair<int,vec2> >  ext_f2d;
 	//du is the displacement vector of nodes need to solve.
 	Eigen::VectorXd		    du;
 	//nodes of the truss structure
 	vector<vec>			    nd;
+	vector<vec2>			    nd2;
 	//radius array of strut unit
 	vector<double>		    link_rad;
 	//strut unit,contain the index of two end nodes.
@@ -43,6 +47,7 @@ public:
 	//将单元刚度矩阵从局部坐标系转换到全局坐标系的转置矩阵,动态指针数组
 	//需要析构释放内存
 	vector<Matrix2_6d*>	   Transto;
+	vector<Matrix2_4d*>	   Transto2D;
 	//每一根杆的长度
 	vector<double>		   link_length;
 
@@ -59,11 +64,14 @@ public:
 	void    Solve();
 private:
 	bool	SolveforDisplacement();
+	bool	SolveforDisplacement2D();
 	void	SolveforStress();
 	void	GetStiffnessMat(const vec& nd1,const vec& nd2,double rad,Matrix6d& K,int id);
+	void	GetStiffnessMat2D(const vec2& nd1,const vec2& nd2, double rad, Matrix4d& K,int id);
 	void	InsertTriplet(vector<Tr>& tpl,int r,int c,const Matrix6d& K);
+	void	InsertTriplet2D(vector<Tr>& tpl,int r,int c,const Matrix4d& K);
 	void	SetBigNum(SparseMatrixType& K,int i);
-	void	LockStiffinZ(SparseMatrixType& K,int i);
+	void	SetBigNum2D(SparseMatrixType& K,int i);
 };
 
 #endif

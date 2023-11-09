@@ -26,9 +26,9 @@ void static_solver::readTrussData(const char* filename)
 			fscanf(file,"%d",&node_count);
 			for (int i=0; i<node_count; i++)
 			{
-				float x,y,z;
-				fscanf(file,"%f %f %f",&x,&y,&z);
-				nd.push_back(vec(x,y,z));
+				float x,y;
+				fscanf(file,"%f %f",&x,&y);
+				nd2.push_back(vec2(x,y));
 			}
 		}
 		// elements I suppose
@@ -53,9 +53,9 @@ void static_solver::readTrussData(const char* filename)
 			fscanf(file,"%d",&force_count);
 			for (int i=0; i<force_count; i++)
 			{
-				int f_index; float x,y,z;
-				fscanf(file,"%d %f %f %f",&f_index,&x,&y,&z);
-				ext_f.push_back(pair<int,vec>(f_index,vec(x,y,z)));
+				int f_index; float x,y;
+				fscanf(file,"%d %f %f",&f_index,&x,&y);
+				ext_f2d.push_back(pair<int,vec2>(f_index,vec2(x,y)));
 			}
 		}
 		else if (strncmp(str,"constraint",10) == 0)
@@ -79,7 +79,7 @@ void static_solver::readTrussData(const char* filename)
 
 void static_solver::Solve()
 {
-	if (SolveforDisplacement())
+	if (SolveforDisplacement2D())
 	{
 		printf("success\n");
 		SolveforStress();
@@ -90,6 +90,64 @@ void static_solver::Solve()
 		return;
 	}
 }
+
+bool static_solver::SolveforDisplacement2D()
+{
+	int unit_count = un.size();
+	int nd_count = nd2.size();
+	int dimf_count = 2 * nd_count;
+	vector<Tr> tripletList;
+	tripletList.reserve(16*unit_count);
+	Transto2D.resize(unit_count);
+	link_length.resize(unit_count);
+
+	for (int i=0; i<unit_count; i++)
+	{
+		//p is first node of the strut , q is the second 
+		int p = un[i].first, q = un[i].second;
+		Matrix4d uk;
+		GetStiffnessMat2D(nd2[p],nd2[q],link_rad[i],uk,i);
+		InsertTriplet2D(tripletList,p,q,uk);
+	}
+
+	SparseMatrixType Kw(2*nd_count,2*nd_count);
+	Kw.setFromTriplets(tripletList.begin(),tripletList.end());
+	std::cout << "setFromTriplets" << Kw << "\n" << std::endl;
+
+	Eigen::VectorXd Fr(dimf_count);
+	Fr.setZero();
+
+	//set external force 
+	for (size_t i=0; i<ext_f2d.size(); i++)
+	{
+		for (int j=0; j<2; j++)
+			Fr(2*ext_f2d[i].first+j) = ext_f2d[i].second[j];
+	}
+
+	// std::cout << Kw << std::endl;
+	//set constraint 
+	for (size_t i=0; i< constraint.size(); i++)
+	{
+		for (int j=0; j<2; j++)
+			Fr(2*constraint[i]+j) = 0;
+
+		SetBigNum2D(Kw,constraint[i]);
+	}
+
+	std::cout << "global matrix" << Kw << "\n" << std::endl;
+	
+	Eigen::SimplicialCholesky<SparseMatrixType> K_Solver;
+	K_Solver.compute(Kw);
+  	if (K_Solver.info() != Eigen::Success)
+	{
+		std::cout << K_Solver.info() << std::endl;
+		return false;
+	}         
+	
+	du = K_Solver.solve(Fr);
+	return true;
+}
+
 bool static_solver::SolveforDisplacement()
 {
 	int unit_count = un.size();
@@ -146,14 +204,19 @@ bool static_solver::SolveforDisplacement()
 	return true;
 }
 
-
-void static_solver::LockStiffinZ(SparseMatrixType& K,int i)
+void static_solver::SetBigNum2D(SparseMatrixType& K,int i)
 {
-	for (int j=0; j<i; j+=3)
+	i *= 2;
+	for (int j=0; j<2; j++)
 	{
-			K.coeffRef(j,j) = BIGNUMERIC;
+		for (int k=0; k<2; k++)
+		{
+			float ef = K.coeff(i+j,i+k);
+			if (ef <= BIGNUMERIC) {
+			K.coeffRef(i+j,i+k) = BIGNUMERIC * ef;
+			}
+		}
 	}
-
 }
 
 void static_solver::SetBigNum(SparseMatrixType& K,int i)
@@ -169,6 +232,27 @@ void static_solver::SetBigNum(SparseMatrixType& K,int i)
 			}
 		}
 	}
+}
+
+void static_solver::InsertTriplet2D(vector<Tr>& tpl,int r,int c,const Matrix4d& K)
+{
+	r *= 2; c *= 2;
+
+	for (int i=0,k=0; i<2; i++,k++)
+		for (int j=0,l=0; j<2; j++,l++)
+			tpl.push_back(Tr(r+k,r+l,K(i,j)));
+
+	for (int i=0,k=0; i<2; i++,k++)
+		for (int j=2,l=0; j<4; j++,l++)
+			tpl.push_back(Tr(r+k,c+l,K(i,j)));
+
+	for (int i=2,k=0; i<4; i++,k++)
+		for (int j=0,l=0; j<2; j++,l++)
+			tpl.push_back(Tr(c+k,r+l,K(i,j)));
+
+	for (int i=2,k=0; i<4; i++,k++)
+		for (int j=2,l=0; j<4; j++,l++)
+			tpl.push_back(Tr(c+k,c+l,K(i,j)));
 }
 
 //     r      c
@@ -228,10 +312,9 @@ inline void static_solver::GetStiffnessMat(const vec& nd1,const vec& nd2,
 std::cout << K << std::endl;
 	for (int i=2;i<6;i+=3)
 	{
-		for (int j=0;j<6;j++)
+		for (int j=2;j<6;j+=3)
 		{
 			K(i,j) = BIGNUMERIC;
-			K(j,i) = BIGNUMERIC;
 		}
 	}
 
@@ -239,6 +322,34 @@ std::cout << K << std::endl;
 
 
 	Transto[id] = Te;
+	link_length[id] = ld;
+}
+
+inline void static_solver::GetStiffnessMat2D(const vec2& nd1,const vec2& nd2, double rad, Matrix4d& K,int id)
+{
+	assert(rad > 0);
+	const double pi = 3.14159265359;
+	double ld = len(nd2 - nd1);
+	assert(ld > 0);
+	double area = pi * rad * rad;
+	double coefficient = ex * area / ld;
+
+	//cos(x,x~) = (x2 - x1) / l
+	double md = (nd2[0] - nd1[0]) / ld;
+	//cos(x,y~) = (y2 - y1) / l
+	double nd = (nd2[1] - nd1[1]) / ld;
+
+	Eigen::Matrix<double,2,4>* Te = new Eigen::Matrix<double,2,4>;
+	*Te << md, nd, 0, 0,
+				0, 0, md, nd;
+
+	Eigen::Matrix2d Ke;
+	Ke << 1, -1, -1, 1;
+
+	K = coefficient * ((*Te).transpose() * Ke * (*Te));
+	std::cout << K << "\n" << std::endl;
+
+	Transto2D[id] = Te;
 	link_length[id] = ld;
 }
 
@@ -259,13 +370,13 @@ void static_solver::SolveforStress()
 	for (int i=0; i<un_count; i++)
 	{
 		coeffs = ex / link_length[i];
-		nd1 = 3 * un[i].first; 
-		nd2 = 3 * un[i].second;
-		Eigen::Matrix<double,6,1> dq;
-		dq << du[nd1],du[nd1+1],du[nd1+2],
-			  du[nd2],du[nd2+1],du[nd2+2];
+		nd1 = 2 * un[i].first; 
+		nd2 = 2 * un[i].second;
+		Eigen::Matrix<double,4,1> dq;
+		dq << du[nd1],du[nd1+1],
+			  du[nd2],du[nd2+1];
 
-		stress[i] = coeffs * unit * (*Transto[i]) * dq;
+		stress[i] = coeffs * unit * (*Transto2D[i]) * dq;
 	}
 }
 
@@ -284,11 +395,11 @@ void static_solver::save_results(const char* filename)
 
 	fprintf(fp,"results data\n");
 	fprintf(fp,"Nodes Displacement\n");
-	int nd_count = du.size() / 3;
+	int nd_count = du.size() / 2;
 	for (int i=0; i<nd_count; i++)
 	{
-		int n_index = i*3;
-		fprintf(fp,"Node%d:%.3f,%.3f,%.3f\n",i,du[n_index],du[n_index+1],du[n_index+2]);
+		int n_index = i*2;
+		fprintf(fp,"Node%d:%.6f,%.6f\n",i,du[n_index],du[n_index+1]);
 	}
 
 	fprintf(fp,"Element Unit Stress\n");
