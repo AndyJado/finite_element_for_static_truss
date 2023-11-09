@@ -1,0 +1,15 @@
+results data
+Nodes Displacement
+Node0:0.000002,0.000000
+Node1:0.000004,-0.000001
+Node2:-0.000000,0.000000
+Node3:0.000000,0.000000
+Node4:0.000000,-0.000000
+Element Unit Stress
+Unit0:54752.277
+Unit1:-49381.262
+Unit2:52275.266
+Unit3:67780.992
+Unit4:-52579.797
+Unit5:0.000
+Unit6:-0.000
